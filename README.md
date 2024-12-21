@@ -97,3 +97,7 @@ Ensure you have the following installed:
 2. Type a message in the **"Your Text Input"** textbox.
 3. Click the **"Send Text"** button.
 4. View the AI's response in the **"AI's Text Response"** section.
+
+# **Author**
+
+- [Abenezer Abera](https://github.com/AbenezerAbera7).
