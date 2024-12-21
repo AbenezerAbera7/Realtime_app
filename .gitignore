@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+/flagged
+
+# Logs
+*.log
+*.log.*
+
+# macOS system files
+.DS_Store
+
+# Environment variables
+.env
+
+# Cache
+*.egg-info/
+*.egg
+*.pyo
+*.whl
+*.pytest_cache/
+.cache/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Generated files
+*.sqlite3
+*.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python packaging files
+*.egg-info/
+MANIFEST
