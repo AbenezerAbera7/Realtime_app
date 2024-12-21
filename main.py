@@ -10,6 +10,7 @@ from pydub import AudioSegment
 import gradio as gr
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -20,9 +21,23 @@ HEADERS = {
 }
 
 # -----------------------------------------------------------------------------
+# HELPER FUNCTION TO RESAMPLE AUDIO
+# -----------------------------------------------------------------------------
+def resample_audio(audio_np, input_rate, target_rate=24000):
+    """Resample audio to the target rate."""
+    audio_segment = AudioSegment(
+        audio_np.tobytes(),
+        frame_rate=input_rate,
+        sample_width=2,
+        channels=1
+    )
+    resampled_audio = audio_segment.set_frame_rate(target_rate)
+    return resampled_audio.get_array_of_samples()
+
+# -----------------------------------------------------------------------------
 # SHARED WEBSOCKET FUNCTION
 # -----------------------------------------------------------------------------
-async def connect_to_openai_ws(payload_event, is_audio=True, timeout=60, retries=3):
+async def connect_to_openai_ws(payload_event, is_audio=True, timeout=120, retries=3):
     """Handles WebSocket communication for both audio and text."""
     if not OPENAI_API_KEY:
         print("API Key not found!")
@@ -38,12 +53,8 @@ async def connect_to_openai_ws(payload_event, is_audio=True, timeout=60, retries
                 print("conversation.item.create sent.")
 
                 # Build 'response.create' request
-                if is_audio:
-                    response_instructions = "Please respond with audio to the user's input."
-                    response_obj = {"voice": "alloy"}
-                else:
-                    response_instructions = "Please respond in text only, under 50 words."
-                    response_obj = {"modalities": ["text"]}
+                response_instructions = "Please respond with audio to the user's input." if is_audio else "Please respond in text only, under 50 words."
+                response_obj = {"voice": "alloy"} if is_audio else {"modalities": ["text"]}
 
                 response_create = {
                     "type": "response.create",
@@ -70,8 +81,7 @@ async def connect_to_openai_ws(payload_event, is_audio=True, timeout=60, retries
                                 audio_data_list.append(event['delta'])
                             elif event.get('type') == 'response.audio.done':
                                 print("Received full AUDIO response.")
-                                base64_data = "".join(audio_data_list)
-                                return base64.b64decode(base64_data)
+                                return base64.b64decode("".join(audio_data_list))
                         else:
                             if event.get('type') == 'response.text.delta':
                                 text_collected.append(event.get("delta", ""))
@@ -93,6 +103,14 @@ async def connect_to_openai_ws(payload_event, is_audio=True, timeout=60, retries
 # -----------------------------------------------------------------------------
 # AUDIO CHAT LOGIC
 # -----------------------------------------------------------------------------
+def process_audio(audio_data):
+    """Process and resample audio to match API requirements."""
+    sample_rate, audio_np = audio_data
+    if sample_rate != 24000:
+        audio_np = resample_audio(audio_np, sample_rate, target_rate=24000)
+        sample_rate = 24000
+    return sample_rate, audio_np
+
 def numpy_to_audio_bytes(audio_np, sample_rate):
     """Convert (sample_rate, np.array) into WAV bytes."""
     with io.BytesIO() as buffer:
@@ -102,7 +120,7 @@ def numpy_to_audio_bytes(audio_np, sample_rate):
 
 def audio_to_item_create_event(audio_data):
     """Build conversation.item.create for audio input."""
-    sample_rate, audio_np = audio_data
+    sample_rate, audio_np = process_audio(audio_data)
     wav_bytes = numpy_to_audio_bytes(audio_np, sample_rate)
     base64_pcm = base64.b64encode(wav_bytes).decode('utf-8')
     return json.dumps({
@@ -120,7 +138,7 @@ def voice_chat_response(audio_data, history):
         if not audio_data:
             return None, history
         audio_event = audio_to_item_create_event(audio_data)
-        audio_response = asyncio.run(connect_to_openai_ws(audio_event, is_audio=True, timeout=60))
+        audio_response = asyncio.run(connect_to_openai_ws(audio_event, is_audio=True, timeout=120))
         if isinstance(audio_response, bytes):
             audio_seg = AudioSegment.from_raw(io.BytesIO(audio_response), sample_width=2, frame_rate=24000, channels=1)
             buffer_wav = io.BytesIO()
@@ -151,7 +169,7 @@ def text_chat_response(user_text):
         if not user_text:
             return "No input text."
         text_event = build_text_item_create_event(user_text)
-        text_response = asyncio.run(connect_to_openai_ws(text_event, is_audio=False, timeout=60))
+        text_response = asyncio.run(connect_to_openai_ws(text_event, is_audio=False, timeout=120))
         return text_response if text_response else "No text response received."
     except Exception as e:
         print("Error in text_chat_response:", e)
