@@ -1,0 +1,5 @@
+websockets==10.4
+python-dotenv==1.0.0
+pydub==0.25.1
+soundfile==0.10.3.post1   # or choose 0.12.1
+gradio==3.39.0
